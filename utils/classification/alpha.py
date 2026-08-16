@@ -1,11 +1,14 @@
+from __future__ import annotations
+
+from typing import Any
+
 import torch
-from pytorch3d.renderer import TexturesVertex
-from pytorch3d.structures import Meshes
 
 from ..datatypes import Device
+from ..pytorch3d import require_pytorch3d
 
 
-def _mesh_features(mesh: Meshes, device: Device) -> torch.Tensor:
+def _mesh_features(mesh: Any, device: Device) -> torch.Tensor:
     if mesh.textures is None or not hasattr(mesh.textures, "verts_features_list"):
         raise ValueError("mesh must contain vertex features")
     features = mesh.textures.verts_features_list()[0].to(device)
@@ -15,12 +18,12 @@ def _mesh_features(mesh: Meshes, device: Device) -> torch.Tensor:
 
 
 def add_classification_alpha(
-    meshes: list[Meshes],
+    meshes: list[Any],
     masks: torch.Tensor | None,
     height: int,
     width: int,
     device: Device = "cpu",
-) -> tuple[list[Meshes], torch.Tensor]:
+) -> tuple[list[Any], torch.Tensor]:
     """Replace the alpha feature channel and return ComfyUI preview images."""
     if not meshes:
         raise ValueError("meshes must not be empty")
@@ -30,6 +33,7 @@ def add_classification_alpha(
         if masks.ndim != 3 or tuple(masks.shape) != (len(meshes), height, width):
             raise ValueError("masks must have shape [meshes, height, width]")
 
+    pytorch3d = require_pytorch3d()
     classified_meshes = []
     previews = []
     for index, mesh in enumerate(meshes):
@@ -45,10 +49,10 @@ def add_classification_alpha(
         verts = mesh.verts_list()[0].to(device)
         faces = mesh.faces_list()[0].to(device)
         classified_meshes.append(
-            Meshes(
+            pytorch3d.Meshes(
                 verts=[verts],
                 faces=[faces],
-                textures=TexturesVertex(verts_features=features.unsqueeze(0)),
+                textures=pytorch3d.TexturesVertex(verts_features=features.unsqueeze(0)),
             )
         )
         preview = features[:, 3].reshape(height, width, 1).repeat(1, 1, 3)

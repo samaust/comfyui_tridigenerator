@@ -24,15 +24,28 @@ cd ComfyUI-TridiGenerator
 python3 -m pip install -r requirements.txt
 ```
 
-Restart ComfyUI after installation and check its console for import failures.
+Install PyTorch3D using the separate step below, then restart ComfyUI and check
+its console for import failures.
 
 ### Native and CUDA dependencies
 
-PyTorch3D may need to be compiled against the same PyTorch and CUDA versions used by ComfyUI:
+PyTorch3D contains a native extension and must be built against the exact Torch
+installation used by ComfyUI. Install it only after `requirements.txt` (and
+after every future Torch upgrade):
 
 ```bash
-python3 -m pip install "git+https://github.com/facebookresearch/pytorch3d.git@v0.7.9" --no-build-isolation
+python3 -c "import torch; print(torch.__version__, torch.version.cuda)"
+python3 -m pip uninstall -y pytorch3d
+MAX_JOBS=4 python3 -m pip install --force-reinstall --no-deps --no-build-isolation --no-cache-dir -r requirements-pytorch3d.txt
+python3 -c "import torch; from pytorch3d import _C; print('PyTorch3D extension loaded with', torch.__version__)"
 ```
+
+An error mentioning an undefined C++ symbol (including
+`materialize_cow_storage`) means the installed PyTorch3D extension was compiled
+for a different Torch ABI. Re-running ordinary `requirements.txt` installation
+does not replace an already satisfied native package; uninstall and rebuild it
+with the commands above. `--no-deps` prevents the PyTorch3D installation step
+from replacing ComfyUI's Torch build.
 
 PDAL and its Python bindings require native PDAL libraries. On Ubuntu, install the required compiler, GDAL, GeoTIFF, LASzip, TIFF, SQLite, cURL, and PROJ development packages before installing `pdal`.
 
@@ -66,6 +79,7 @@ Place supported safetensors files under the ComfyUI model directory:
 | Meshes / Save | `TDGenMeshesSavePly` | Save every incoming mesh as an RGB PLY file |
 | Classification | `TDGenClassificationAlpha` | Replace per-vertex alpha from masks |
 | Classification | `TDGenClassificationVisible` | Replace per-vertex visibility from face angles |
+| Rendering | `TDGenRenderTexturedMesh` | Render synchronized ViPE RGB-D data with poses and per-frame pinhole intrinsics |
 | Stereoscopic / Models | `TDGenStereoscopicLoadModelSvdStereoCrafter` | Load the SVD StereoCrafter pipeline |
 | Stereoscopic / Generation | `TDGenStereoscopicTiledInpaint` | Inpaint warped stereoscopic frames |
 | Videos / Save | `TDGenSaveVideoExr` | Save one-, three-, or four-channel EXR video sequences |
@@ -90,10 +104,19 @@ PCD -> mesh creation -> alpha/visibility classification -> PLY or LAS/LAZ save
 
 The OpenEXR load/save nodes and StereoCrafter nodes can be used independently of the point-cloud chain.
 
+The ViPE render path is:
+
+```text
+VipeExtractData -> VipeSelectMasks -> TDGenRenderTexturedMesh
+```
+
+Connect the extracted images, metric depths, and JSON metadata directly, plus the selected binary mask. The renderer validates that all streams and metadata describe the same frames and resolution.
+
 ## Current limitations and future work
 
 - glTF embeds point and color buffers and is practical only for relatively short sequences.
-- FOV estimation is not implemented.
+- Geometry nodes consume per-frame `VIPE_INTRINSICS` from `comfyui_vipe`; field-of-view approximation is intentionally unsupported.
+- `TDGenRenderTexturedMesh` renders synchronized RGB, masks, metric depth, and ViPE metadata using per-frame pinhole intrinsics and camera-to-world poses. Displacement is in metres and rotation uses yaw (Y), pitch (X), then roll (Z), in degrees.
 - Stereoscopic mesh rendering and browser/AR/VR integration remain experimental and are not registered as ComfyUI nodes.
 - Model inference, PyTorch3D, StereoCrafter, and PDAL workflows require their full runtime dependencies and suitable hardware.
 

@@ -3,7 +3,6 @@ numpy
 OpenImageIO
 pdal
 pygltflib @ git+https://github.com/samaust/pygltflib@refactor
-pytorch3d
 stereocrafter @ git+https://github.com/samaust/StereoCrafter@python_package
 torch
 video_depth_anything @ git+https://github.com/samaust/Video-Depth-Anything@python_package

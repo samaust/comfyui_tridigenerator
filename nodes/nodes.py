@@ -45,6 +45,9 @@ from .meshes.save.ply import (
 from .classification.alpha import TDGenClassificationAlpha
 from .classification.visible import TDGenClassificationVisible
 
+# Rendering
+from .rendering.generation import TDGenRenderTexturedMesh
+
 # Stereoscopic
 from .stereoscopic.models import (
     TDGenStereoscopicLoadModelSvdStereoCrafter
@@ -93,6 +96,9 @@ NODE_CLASS_MAPPINGS = {
     "TDGenClassificationAlpha": TDGenClassificationAlpha,
     "TDGenClassificationVisible": TDGenClassificationVisible,
 
+    # Rendering
+    "TDGenRenderTexturedMesh": TDGenRenderTexturedMesh,
+
     # Stereoscopic models
     "TDGenStereoscopicLoadModelSvdStereoCrafter": TDGenStereoscopicLoadModelSvdStereoCrafter,
     # Stereoscopic inpaint
@@ -133,6 +139,9 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     # Classification
     "TDGenClassificationAlpha": "TDGen Classification - Alpha",
     "TDGenClassificationVisible": "TDGen Classification - Visible",
+
+    # Rendering
+    "TDGenRenderTexturedMesh": "TDGen Rendering - Textured Mesh",
 
     # Stereoscopic models
     "TDGenStereoscopicLoadModelSvdStereoCrafter": "TDGen Stereoscopic - (Down)load Model Svd StereoCrafter",

@@ -1,0 +1,2 @@
+# Install this file after requirements.txt using the command documented in README.md.
+pytorch3d @ git+https://github.com/facebookresearch/pytorch3d.git@d9839a9

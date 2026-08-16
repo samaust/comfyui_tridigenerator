@@ -38,11 +38,15 @@ def install_external_stubs():
 
     pytorch3d = package("pytorch3d")
     renderer = types.ModuleType("pytorch3d.renderer")
-    renderer.FoVPerspectiveCameras = Mock
+    renderer.PerspectiveCameras = Mock
+    renderer.MeshRasterizer = Mock
+    renderer.RasterizationSettings = Mock
     renderer.TexturesVertex = Mock
     renderer.look_at_view_transform = Mock
     structures = types.ModuleType("pytorch3d.structures")
     structures.Meshes = Mock
+    ops = types.ModuleType("pytorch3d.ops")
+    ops.interpolate_face_attributes = Mock
     io_module = types.ModuleType("pytorch3d.io")
     io_module.IO = Mock
     sys.modules.update(
@@ -50,6 +54,7 @@ def install_external_stubs():
             "pytorch3d": pytorch3d,
             "pytorch3d.renderer": renderer,
             "pytorch3d.structures": structures,
+            "pytorch3d.ops": ops,
             "pytorch3d.io": io_module,
         }
     )
@@ -132,12 +137,18 @@ class PackageImportTests(unittest.TestCase):
         module = importlib.util.module_from_spec(spec)
         sys.modules[module_name] = module
         spec.loader.exec_module(module)
-        self.assertEqual(len(module.NODE_CLASS_MAPPINGS), 20)
+        self.assertEqual(len(module.NODE_CLASS_MAPPINGS), 21)
         self.assertEqual(
             set(module.NODE_CLASS_MAPPINGS),
             set(module.NODE_DISPLAY_NAME_MAPPINGS),
         )
         self.assertEqual(module.WEB_DIRECTORY, "./web")
+
+        renderer_inputs = module.NODE_CLASS_MAPPINGS["TDGenRenderTexturedMesh"].INPUT_TYPES()["required"]
+        for name in ("displacement_x", "displacement_y", "displacement_z", "yaw", "pitch", "roll"):
+            options = renderer_inputs[name][1]
+            self.assertLess(options["min"], 0, name)
+            self.assertGreater(options["max"], 0, name)
 
 
 if __name__ == "__main__":

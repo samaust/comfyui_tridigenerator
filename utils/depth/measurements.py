@@ -1,12 +1,12 @@
 import numpy as np
 import torch
 
-from ..cameras.matrix import compute_camera_matrix
+from ..cameras.intrinsics import validate_vipe_intrinsics
 
 
 def measure_distances(
     metric_depths: torch.Tensor,
-    vertical_fov_deg: float,
+    intrinsics: dict,
     coordinates: np.ndarray,
 ) -> list[list[float]]:
     """Unproject pixel pairs from the first depth frame and measure 3D distances."""
@@ -23,9 +23,8 @@ def measure_distances(
 
     depth = metric_depths[0].detach().cpu().numpy().astype(np.float64, copy=False)
     height, width = depth.shape
-    matrix = compute_camera_matrix(None, vertical_fov_deg, width, height)
-    fx, fy = matrix[0, 0], matrix[1, 1]
-    cx, cy = matrix[0, 2], matrix[1, 2]
+    values = validate_vipe_intrinsics(intrinsics, metric_depths.shape[0])
+    fx, fy, cx, cy = values[0].to(torch.float64).tolist()
 
     results = []
     for pair in coordinates:

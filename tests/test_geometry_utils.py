@@ -8,7 +8,6 @@ try:
     import numpy as np
     import torch
 
-    from utils.cameras.matrix import compute_camera_matrix, horizontal_to_vertical_fov
     from utils.depth.calibration import (
         torch_calibrate_scale_shift_manual,
         torch_estimate_metric_depths,
@@ -30,6 +29,7 @@ def load_pcd_node_module():
         f"{root_name}.nodes": ROOT / "nodes",
         f"{root_name}.nodes.pcd": ROOT / "nodes" / "pcd",
         f"{root_name}.utils": ROOT / "utils",
+        f"{root_name}.utils.cameras": ROOT / "utils" / "cameras",
         f"{root_name}.utils.pcd": ROOT / "utils" / "pcd",
     }
     for name, path in package_paths.items():
@@ -57,44 +57,48 @@ def load_pcd_node_module():
 
 @unittest.skipUnless(np is not None and torch is not None, "NumPy and Torch are required")
 class GeometryUtilityTests(unittest.TestCase):
-    def test_square_horizontal_fov_equals_vertical_fov(self):
-        self.assertAlmostEqual(horizontal_to_vertical_fov(90.0, 512, 512), 90.0)
-        matrix = compute_camera_matrix(None, 90.0, 2, 2)
-        self.assertAlmostEqual(matrix[0, 0], 1.0)
-        self.assertAlmostEqual(matrix[1, 1], 1.0)
+    @staticmethod
+    def intrinsics(count=1):
+        return {
+            "values": torch.tensor([[2.0, 4.0, 0.25, 0.75]]).repeat(count, 1),
+            "frame_indices": torch.arange(count),
+            "camera_models": ("pinhole",) * count,
+        }
 
     def test_point_cloud_shape_dtype_and_negative_z(self):
         images = torch.tensor(
             [[[[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]], [[0.0, 0.0, 1.0], [1.0, 1.0, 1.0]]]]
         )
         depths = torch.full((1, 2, 2), 2.0)
-        positions, colors = compute_verts(images, depths, 90)
+        positions, colors = compute_verts(images, depths, self.intrinsics())
         self.assertEqual(positions.shape, (1, 4, 3))
         self.assertEqual(colors.shape, (1, 4, 3))
         self.assertEqual(positions.dtype, np.float32)
         self.assertEqual(colors.dtype, np.float32)
         np.testing.assert_allclose(positions[..., 2], -2.0)
+        np.testing.assert_allclose(positions[0, 0], [-0.25, 0.375, -2.0])
 
     def test_point_cloud_rejects_invalid_depth(self):
         with self.assertRaises(ValueError):
-            compute_verts(torch.ones((1, 2, 2, 3)), torch.zeros((1, 2, 2)), 90)
+            compute_verts(torch.ones((1, 2, 2, 3)), torch.zeros((1, 2, 2)), self.intrinsics())
 
     def test_pcd_node_selects_all_or_one_frame_once(self):
         node_class = load_pcd_node_module().TDGenPcdCreatePcd
         images = torch.ones((3, 2, 2, 3))
         depths = torch.ones((3, 2, 2))
-        all_pcd = node_class().run(images, depths, -1, 90)[0]
-        one_pcd = node_class().run(images, depths, 1, 90)[0]
+        intrinsics = self.intrinsics(3)
+        all_pcd = node_class().run(images, depths, -1, intrinsics)[0]
+        one_pcd = node_class().run(images, depths, 1, intrinsics)[0]
         self.assertEqual(all_pcd[0].shape[0], 3)
         self.assertEqual(one_pcd[0].shape[0], 1)
         with self.assertRaises(ValueError):
-            node_class().run(images, depths, 3, 90)
+            node_class().run(images, depths, 3, intrinsics)
 
     def test_distance_measurement_for_center_ray(self):
         depths = torch.full((1, 2, 2), 2.0)
         pairs = np.asarray([[[1, 1], [0, 1]]], dtype=np.float64)
-        result = measure_distances(depths, 90.0, pairs)[0]
-        self.assertAlmostEqual(result[9], 2.0)
+        result = measure_distances(depths, self.intrinsics(), pairs)[0]
+        self.assertAlmostEqual(result[9], 1.0)
         self.assertAlmostEqual(result[2], -2.0)
         self.assertAlmostEqual(result[5], -2.0)
 

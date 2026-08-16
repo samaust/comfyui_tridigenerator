@@ -21,6 +21,7 @@ EXPECTED_KEYS = {
     "TDGenMeshesSavePly",
     "TDGenClassificationAlpha",
     "TDGenClassificationVisible",
+    "TDGenRenderTexturedMesh",
     "TDGenStereoscopicLoadModelSvdStereoCrafter",
     "TDGenStereoscopicTiledInpaint",
     "TDGenSaveVideoExr",
@@ -52,6 +53,27 @@ class RegistryContractTests(unittest.TestCase):
         self.assertEqual(class_keys, EXPECTED_KEYS)
         self.assertEqual(display_keys, EXPECTED_KEYS)
         self.assertNotIn("TridiGeneratorPcdEstimation", class_keys)
+
+    def test_registered_nodes_do_not_expose_fov(self):
+        for path in (ROOT / "nodes").rglob("*.py"):
+            self.assertNotIn("fov", path.read_text().lower(), str(path))
+
+    def test_pytorch3d_is_not_imported_while_registering_nodes(self):
+        for path in (ROOT / "utils").rglob("*.py"):
+            if path.name == "pytorch3d.py":
+                continue
+            tree = ast.parse(path.read_text())
+            for statement in tree.body:
+                if isinstance(statement, ast.Import):
+                    modules = [alias.name for alias in statement.names]
+                elif isinstance(statement, ast.ImportFrom) and statement.level == 0:
+                    modules = [statement.module or ""]
+                else:
+                    continue
+                self.assertFalse(
+                    any(module == "pytorch3d" or module.startswith("pytorch3d.") for module in modules),
+                    f"{path} imports PyTorch3D at module scope",
+                )
 
     def test_every_node_declares_required_metadata(self):
         classes = {}

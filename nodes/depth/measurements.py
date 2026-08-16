@@ -30,7 +30,7 @@ class TDGenDepthMeasureDistance:
         return {
             "required": {
                 "metric_depths": ("IMAGE",),
-                "yfov": ("FLOAT", {"default": 74.0, "min": 1.0, "max": 120.0, "step": 1.0}),
+                "intrinsics": ("VIPE_INTRINSICS",),
                 "coordinates_positive": ("STRING", {"forceInput": True}),
                 "coordinates_negative": ("STRING", {"forceInput": True}),
             }
@@ -42,13 +42,13 @@ class TDGenDepthMeasureDistance:
     CATEGORY = "TDGen/Depth/Measurements"
     DESCRIPTION = "Measure 3D distances between paired pixels in the first depth frame."
 
-    def run(self, metric_depths, yfov, coordinates_positive, coordinates_negative):
+    def run(self, metric_depths, intrinsics, coordinates_positive, coordinates_negative):
         starts = _parse_coordinates(coordinates_positive, "coordinates_positive")
         ends = _parse_coordinates(coordinates_negative, "coordinates_negative")
         if len(starts) != len(ends):
             raise ValueError("positive and negative coordinate lists must have equal length")
         coordinate_pairs = np.asarray(list(zip(starts, ends)), dtype=np.float64)
-        distances = measure_distances(metric_depths, yfov, coordinate_pairs)
+        distances = measure_distances(metric_depths, intrinsics, coordinate_pairs)
 
         payload = {}
         for index, (pair, distance) in enumerate(zip(coordinate_pairs.tolist(), distances)):

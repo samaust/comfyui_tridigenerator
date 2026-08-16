@@ -1,9 +1,12 @@
+from __future__ import annotations
+
+from typing import Any
+
 import numpy as np
 import torch
-from pytorch3d.renderer import TexturesVertex
-from pytorch3d.structures import Meshes
 
 from ..datatypes import Device, PointCloud
+from ..pytorch3d import require_pytorch3d
 
 
 def _grid_faces(height: int, width: int, device: Device) -> torch.Tensor:
@@ -24,7 +27,7 @@ def create_meshes(
     height: int,
     width: int,
     device: Device = "cpu",
-) -> list[Meshes]:
+) -> list[Any]:
     """Convert a point-cloud sequence to meshes with fixed RGBA/visibility features."""
     positions, colors = pcd
     positions = np.asarray(positions, dtype=np.float32)
@@ -38,6 +41,7 @@ def create_meshes(
     if positions.shape[1] != height * width:
         raise ValueError("height * width must equal the PCD vertex count")
 
+    pytorch3d = require_pytorch3d()
     faces = _grid_faces(height, width, device)
     meshes = []
     for frame_positions, frame_colors in zip(positions, colors):
@@ -51,10 +55,10 @@ def create_meshes(
         visible = torch.ones((rgba.shape[0], 1), device=device)
         features = torch.cat((rgba, visible), dim=1).unsqueeze(0)
         meshes.append(
-            Meshes(
+            pytorch3d.Meshes(
                 verts=[verts],
                 faces=[faces.clone()],
-                textures=TexturesVertex(verts_features=features),
+                textures=pytorch3d.TexturesVertex(verts_features=features),
             )
         )
     return meshes

@@ -1,4 +1,5 @@
 from ...utils.pcd.generation import compute_verts
+from ...utils.cameras.intrinsics import slice_vipe_intrinsics, validate_vipe_intrinsics
 
 
 class TDGenPcdCreatePcd:
@@ -11,31 +12,26 @@ class TDGenPcdCreatePcd:
                 "images": ("IMAGE",),
                 "metric_depths": ("IMAGE",),
                 "index": ("INT", {"default": -1, "min": -1, "step": 1}),
-                "fov_deg": (
-                    "INT",
-                    {
-                        "default": 74,
-                        "min": 1,
-                        "max": 120,
-                        "step": 1,
-                        "tooltip": "Horizontal field of view in degrees",
-                    },
-                ),
+                "intrinsics": ("VIPE_INTRINSICS",),
             }
         }
 
-    RETURN_TYPES = ("PCD", "INT", "INT", "INT")
-    RETURN_NAMES = ("pcd", "height", "width", "fov_deg")
+    RETURN_TYPES = ("PCD", "INT", "INT", "VIPE_INTRINSICS")
+    RETURN_NAMES = ("pcd", "height", "width", "intrinsics")
     FUNCTION = "run"
     CATEGORY = "TDGen/PCD/Generation"
     DESCRIPTION = "Create point-cloud positions and colors from images and metric depth."
 
-    def run(self, images, metric_depths, index, fov_deg):
+    def run(self, images, metric_depths, index, intrinsics):
         if images.ndim != 4:
             raise ValueError("images must have shape [frames, height, width, channels]")
         frame_count = images.shape[0]
         if frame_count == 0:
             raise ValueError("images must contain at least one frame")
+        validate_vipe_intrinsics(intrinsics, frame_count)
+        depth_shape = metric_depths.shape[:-1] if metric_depths.ndim == 4 and metric_depths.shape[-1] == 1 else metric_depths.shape
+        if tuple(depth_shape) != tuple(images.shape[:3]):
+            raise ValueError("metric_depths must match the image frame count and resolution")
         if index < -1 or index >= frame_count:
             raise ValueError(f"index must be -1 or between 0 and {frame_count - 1}")
 
@@ -47,6 +43,7 @@ class TDGenPcdCreatePcd:
                 raise ValueError("metric_depths does not contain the selected frame")
             selected_images = images[index:index + 1]
             selected_depths = metric_depths[index:index + 1]
+            intrinsics = slice_vipe_intrinsics(intrinsics, index)
 
-        pcd = compute_verts(selected_images, selected_depths, fov_deg)
-        return (pcd, images.shape[1], images.shape[2], fov_deg)
+        pcd = compute_verts(selected_images, selected_depths, intrinsics)
+        return (pcd, images.shape[1], images.shape[2], intrinsics)

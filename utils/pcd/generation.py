@@ -1,11 +1,13 @@
 import numpy as np
 import torch
 
+from ..cameras.intrinsics import validate_vipe_intrinsics
+
 
 def compute_verts(
     images: torch.Tensor,
     metric_depths: torch.Tensor,
-    fovx_deg: int,
+    intrinsics: dict,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Create a CPU point-cloud sequence using a negative-Z forward convention."""
     if images.ndim != 4 or images.shape[-1] not in (3, 4):
@@ -16,32 +18,21 @@ def compute_verts(
         raise ValueError("metric_depths must have shape [frames, height, width]")
     if tuple(images.shape[:3]) != tuple(metric_depths.shape):
         raise ValueError("images and metric_depths must share frame, height, and width")
-    if not 0 < fovx_deg < 180:
-        raise ValueError("fovx_deg must be between 0 and 180 degrees")
-
-    colors = images.detach().cpu().numpy().astype(np.float32, copy=False)
-    depths = metric_depths.detach().cpu().numpy().astype(np.float32, copy=False)
-    if not np.isfinite(depths).all() or np.any(depths <= 0):
+    values = validate_vipe_intrinsics(intrinsics, images.shape[0])
+    colors = images.detach().cpu().to(torch.float32)
+    depths = metric_depths.detach().cpu().to(torch.float32)
+    if not torch.isfinite(depths).all() or (depths <= 0).any():
         raise ValueError("metric_depths must contain finite positive values")
 
-    _, height, width = depths.shape
-    horizontal_half_angle = np.deg2rad(fovx_deg) / 2.0
-    vertical_half_angle = np.arctan(
-        (height / 2.0) * np.tan(horizontal_half_angle) / (width / 2.0)
+    frame_count, height, width = depths.shape
+    y_pixels, x_pixels = torch.meshgrid(
+        torch.arange(height, dtype=torch.float32),
+        torch.arange(width, dtype=torch.float32),
+        indexing="ij",
     )
-    horizontal_angles = np.linspace(
-        -horizontal_half_angle, horizontal_half_angle, width, dtype=np.float32
-    )
-    vertical_angles = np.linspace(
-        vertical_half_angle, -vertical_half_angle, height, dtype=np.float32
-    )
-    tan_x, tan_y = np.meshgrid(
-        np.tan(horizontal_angles), np.tan(vertical_angles), indexing="xy"
-    )
-
-    x = depths * tan_x[None, ...]
-    y = depths * tan_y[None, ...]
+    fx, fy, cx, cy = values.unbind(dim=1)
+    x = (x_pixels.unsqueeze(0) - cx[:, None, None]) * depths / fx[:, None, None]
+    y = -(y_pixels.unsqueeze(0) - cy[:, None, None]) * depths / fy[:, None, None]
     z = -depths
-    positions = np.stack((x, y, z), axis=-1).reshape(depths.shape[0], -1, 3)
-    colors = colors.reshape(colors.shape[0], -1, colors.shape[-1])
-    return positions.astype(np.float32, copy=False), colors.astype(np.float32, copy=False)
+    positions = torch.stack((x, y, z), dim=-1).reshape(frame_count, -1, 3)
+    return positions.numpy(), colors.reshape(frame_count, -1, colors.shape[-1]).numpy()

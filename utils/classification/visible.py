@@ -1,14 +1,17 @@
-import torch
-from pytorch3d.renderer import FoVPerspectiveCameras, TexturesVertex, look_at_view_transform
-from pytorch3d.structures import Meshes
+from __future__ import annotations
 
-from ..cameras.matrix import horizontal_to_vertical_fov
+from typing import Any
+
+import torch
+
+from ..cameras.intrinsics import validate_vipe_intrinsics
 from ..datatypes import Device
+from ..pytorch3d import require_pytorch3d
 
 
 def classify_visible(
-    mesh: Meshes,
-    camera: FoVPerspectiveCameras,
+    mesh: Any,
+    camera: Any,
     threshold: float,
     device: Device,
 ) -> torch.Tensor:
@@ -35,38 +38,38 @@ def classify_visible(
 
 
 def add_classification_visible(
-    meshes: list[Meshes],
+    meshes: list[Any],
     height: int,
     width: int,
-    fov_deg: float,
+    intrinsics: dict,
     znear: float,
     zfar: float,
     threshold: float,
     device: Device = "cpu",
-) -> tuple[list[Meshes], torch.Tensor]:
+) -> tuple[list[Any], torch.Tensor]:
     """Replace the visibility feature channel and return ComfyUI previews."""
     if not meshes:
         raise ValueError("meshes must not be empty")
     if height <= 0 or width <= 0 or znear <= 0 or zfar <= znear:
         raise ValueError("invalid image dimensions or camera clipping range")
 
-    rotation, translation = look_at_view_transform(
+    pytorch3d = require_pytorch3d()
+    values = validate_vipe_intrinsics(intrinsics, len(meshes)).to(device)
+    rotation, translation = pytorch3d.look_at_view_transform(
         eye=((0, 0, 0),), at=((0, 0, -1),), up=((0, 1, 0),), device=device
     )
-    vertical_fov = horizontal_to_vertical_fov(fov_deg, width, height)
-    camera = FoVPerspectiveCameras(
-        znear=znear,
-        zfar=zfar,
-        aspect_ratio=1.0,
-        fov=vertical_fov,
-        R=rotation,
-        T=translation,
-        device=device,
-    )
-
     classified_meshes = []
     previews = []
-    for mesh in meshes:
+    for index, mesh in enumerate(meshes):
+        camera = pytorch3d.PerspectiveCameras(
+            focal_length=values[index:index + 1, :2],
+            principal_point=values[index:index + 1, 2:],
+            image_size=((height, width),),
+            in_ndc=False,
+            R=rotation,
+            T=translation,
+            device=device,
+        )
         if mesh.textures is None or not hasattr(mesh.textures, "verts_features_list"):
             raise ValueError("mesh must contain vertex features")
         features = mesh.textures.verts_features_list()[0].to(device).clone()
@@ -79,10 +82,10 @@ def add_classification_visible(
         verts = mesh.verts_list()[0].to(device)
         faces = mesh.faces_list()[0].to(device)
         classified_meshes.append(
-            Meshes(
+            pytorch3d.Meshes(
                 verts=[verts],
                 faces=[faces],
-                textures=TexturesVertex(verts_features=features.unsqueeze(0)),
+                textures=pytorch3d.TexturesVertex(verts_features=features.unsqueeze(0)),
             )
         )
         preview = visible.reshape(height, width, 1).repeat(1, 1, 3)

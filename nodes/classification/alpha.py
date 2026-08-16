@@ -1,6 +1,7 @@
 import comfy.model_management as model_management
 
 from ...utils.classification.alpha import add_classification_alpha
+from ...utils.cameras.intrinsics import validate_vipe_intrinsics
 
 
 class TDGenClassificationAlpha:
@@ -13,21 +14,19 @@ class TDGenClassificationAlpha:
                 "meshes": ("PYTORCH3D_MESHES",),
                 "height": ("INT", {"min": 1, "step": 1}),
                 "width": ("INT", {"min": 1, "step": 1}),
-                "fov_deg": (
-                    "INT",
-                    {"default": 74, "min": 1, "max": 120, "step": 1},
-                ),
+                "intrinsics": ("VIPE_INTRINSICS",),
             },
             "optional": {"masks": ("MASK",)},
         }
 
-    RETURN_TYPES = ("PYTORCH3D_MESHES", "INT", "INT", "INT", "IMAGE")
-    RETURN_NAMES = ("meshes", "height", "width", "fov_deg", "previews")
+    RETURN_TYPES = ("PYTORCH3D_MESHES", "INT", "INT", "VIPE_INTRINSICS", "IMAGE")
+    RETURN_NAMES = ("meshes", "height", "width", "intrinsics", "previews")
     FUNCTION = "run"
     CATEGORY = "TDGen/Classification/Alpha"
     DESCRIPTION = "Set per-vertex alpha classification from masks."
 
-    def run(self, meshes, height, width, fov_deg, masks=None):
+    def run(self, meshes, height, width, intrinsics, masks=None):
+        validate_vipe_intrinsics(intrinsics, len(meshes))
         classified_meshes, previews = add_classification_alpha(
             meshes=meshes,
             masks=masks,
@@ -35,4 +34,4 @@ class TDGenClassificationAlpha:
             width=width,
             device=model_management.get_torch_device(),
         )
-        return (classified_meshes, height, width, fov_deg, previews)
+        return (classified_meshes, height, width, intrinsics, previews)
