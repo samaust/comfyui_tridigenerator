@@ -1,5 +1,9 @@
-mediapy
+depth_anything_v2 @ git+https://github.com/samaust/Depth-Anything-V2@python_package
 numpy
+OpenImageIO
+pdal
 pygltflib @ git+https://github.com/samaust/pygltflib@refactor
-rembg
+pytorch3d
+stereocrafter @ git+https://github.com/samaust/StereoCrafter@python_package
 torch
+video_depth_anything @ git+https://github.com/samaust/Video-Depth-Anything@python_package

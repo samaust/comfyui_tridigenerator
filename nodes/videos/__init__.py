@@ -1,0 +1,1 @@
+"""Video node adapters."""

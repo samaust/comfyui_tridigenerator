@@ -1,13 +1,16 @@
 [project]
 name = "ComfyUI-TridiGenerator"
+version = "0.2.0"
 description = "ComfyUI nodes to generate 3D from videos and render in the browser/AR/VR"
-version = "0.1.0"
 license = {file = "LICENSE"}
-dependencies = ["mediapy","numpy","pygltflib@git+https://github.com/samaust/pygltflib@refactor","rembg","torch"]
+requires-python = ">=3.10"
+dynamic = ["dependencies"]
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
 
 [project.urls]
 Repository = "https://github.com/samaust/ComfyUI-TridiGenerator"
-#  Used by Comfy Registry https://comfyregistry.org
 
 [tool.comfy]
 PublisherId = "samaust"

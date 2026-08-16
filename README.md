@@ -1,158 +1,115 @@
 # ComfyUI-TridiGenerator
-ComfyUI nodes to generate 3D from videos and render in the browser/AR/VR
 
-## Objectives
+ComfyUI nodes for turning image sequences and metric depth into colored point clouds, meshes, glTF, LAS/LAZ, and OpenEXR video sequences. Experimental browser assets are included for future AR/VR viewing work.
 
-Generating :
+## Architecture
 
-* Convert videos to colored point clouds images sequences
-* (low priority) Convert videos to stereoscopic side by side images sequences
+ComfyUI-facing classes live under `nodes/`. They declare inputs and outputs, resolve ComfyUI paths and devices, and call reusable implementations under the matching themed `utils/` directory. `nodes/nodes.py` owns the node registry exported by the root `__init__.py`.
 
-Viewing :
+The `PCD` value passed between nodes contains two CPU `float32` NumPy arrays:
 
-* Look at the 3D points clouds in the browser
-* Watch the 3D colored point cloud videos in AR/VR
-* Watch the side by side images videos in AR/VR
+- positions: `[frames, height * width, 3]`
+- colors: `[frames, height * width, 3]` or `[frames, height * width, 4]`
 
-## Current nodes
+Generated meshes use five vertex feature channels in this order: red, green, blue, alpha, and visibility. Alpha and visibility default to `1` and can be replaced independently by classification nodes.
 
-### TridiGeneratorPcdEstimation
+## Installation
 
-A ComfyUI node to estimate a point cloud from images, disparity, masks,
-fovz in degrees, zmin in meters and zmax in meters.
+ComfyUI custom nodes run from the `custom_nodes` directory. Clone this repository there, activate the Python environment used by ComfyUI, and install its requirements:
 
-The node was tested to work with an input video of 55 frames and a cfd_window_size of 55 frames on a video card with 24GB of VRAM.
+```bash
+cd /path/to/ComfyUI/custom_nodes
+git clone https://github.com/samaust/ComfyUI-TridiGenerator.git
+cd ComfyUI-TridiGenerator
+python3 -m pip install -r requirements.txt
+```
 
-## Future nodes
+Restart ComfyUI after installation and check its console for import failures.
 
-### TridiGeneratorPcdMaskBackground
+### Native and CUDA dependencies
 
-Compute a mask that allows to hide the points in the background during rendering.
+PyTorch3D may need to be compiled against the same PyTorch and CUDA versions used by ComfyUI:
 
-### TridiGeneratorPcdComputeNDisps
+```bash
+python3 -m pip install "git+https://github.com/facebookresearch/pytorch3d.git@v0.7.9" --no-build-isolation
+```
 
-Compute normalized disparity.
+PDAL and its Python bindings require native PDAL libraries. On Ubuntu, install the required compiler, GDAL, GeoTIFF, LASzip, TIFF, SQLite, cURL, and PROJ development packages before installing `pdal`.
 
-### TridiGeneratorPcdComputePCD
+StereoCrafter model loading downloads Hugging Face model data and requires a CUDA environment compatible with its Torch dependencies.
 
-Compute point cloud.
+### Depth models
 
-### TridiGeneratorPcdSaveGLTF
+Place supported safetensors files under the ComfyUI model directory:
 
-Create and save a glTF file. Only works with a low number of frames.
+- `models/depthanything/depth_anything_v2_metric_hypersim_vitl_fp32.safetensors`
+- `models/video_depth_anything/video_depth_anything_vitl.safetensors`
+- `models/video_depth_anything/video_depth_anything_vits.safetensors`
 
-### TridiGeneratorPcdSaveOpenEXR
+## Nodes
 
-Write layers and channels to OpenEXR file :
+| Group | Node | Purpose |
+| --- | --- | --- |
+| Depth / Models | `TDGenDepthLoadModelDepthAnythingV2Metric` | Load a metric Depth Anything V2 model |
+| Depth / Models | `TDGenDepthLoadModelVideoDepthAnything` | Load a Video Depth Anything model |
+| Depth / Generation | `TDGenDepthEstimateDepthAnythingV2Metric` | Estimate metric depth |
+| Depth / Generation | `TDGenDepthEstimateVideoDepthAnything` | Estimate normalized inverse depth |
+| Depth / Calibration | `TDGenDepthCalibrateConstantsAutomatic` | Fit scale and shift from metric and normalized inverse depth |
+| Depth / Calibration | `TDGenDepthCalibrateConstantsManual` | Derive scale and shift from a manual depth range |
+| Depth / Calibration | `TDGenDepthCalibrateMetric` | Convert normalized inverse depth to metric depth |
+| Depth / Measurements | `TDGenDepthMeasureDistance` | Measure paired pixels in the first metric-depth frame |
+| PCD / Generation | `TDGenPcdCreatePcd` | Create a point-cloud sequence and apply optional frame selection |
+| PCD / Save | `TDGenPcdSaveLas` | Save a mesh sequence to one LAS or LAZ file |
+| glTF / Generation | `TDGenGltfCreateGltf` | Convert a `PCD` sequence to glTF |
+| glTF / Save | `TDGenGltfSaveGltf` | Save glTF with a unique ComfyUI output path |
+| Meshes / Generation | `TDGenMeshesCreateMeshes` | Create grid meshes with fixed vertex features |
+| Meshes / Save | `TDGenMeshesSavePly` | Save every incoming mesh as an RGB PLY file |
+| Classification | `TDGenClassificationAlpha` | Replace per-vertex alpha from masks |
+| Classification | `TDGenClassificationVisible` | Replace per-vertex visibility from face angles |
+| Stereoscopic / Models | `TDGenStereoscopicLoadModelSvdStereoCrafter` | Load the SVD StereoCrafter pipeline |
+| Stereoscopic / Generation | `TDGenStereoscopicTiledInpaint` | Inpaint warped stereoscopic frames |
+| Videos / Save | `TDGenSaveVideoExr` | Save one-, three-, or four-channel EXR video sequences |
+| Videos / Load | `TDGenLoadVideoExr` | Load EXR video sequences as ComfyUI images |
 
-* colors (R, G, B, A) at full resolution
-* position (P.X, P.Y, P.Z) at full or lower resolution
-* (optionnally) normalised disparity ND.V at full or lower resolution
+## Modular workflows
 
-### TridiGeneratorPcdLoadOpenEXR
+The point-cloud path is:
 
-Read OpenEXR file saved by TridiGeneratorPcdSaveOpenEXR.
+```text
+depth model -> depth estimation -> calibration -> PCD creation
+```
 
-### TridiGeneratorPcdPreviewOpenEXR
+From the `PCD` output, use either branch:
 
-Display a single frame or multiple frames of an OpenEXR file loaded by TridiGeneratorPcdLoadOpenEXR.
+```text
+PCD -> glTF creation -> glTF save
+PCD -> mesh creation -> alpha/visibility classification -> PLY or LAS/LAZ save
+```
 
+`index` is applied only by `TDGenPcdCreatePcd`: `-1` processes every frame and a non-negative index creates a one-frame `PCD`. Downstream nodes always process the collection they receive.
 
-## Future improvements
+The OpenEXR load/save nodes and StereoCrafter nodes can be used independently of the point-cloud chain.
 
-The current implementation of TridiGeneratorPcdEstimation does many calculations in a single node. A future version will split the node in many nodes.
+## Current limitations and future work
 
-The current implementation of TridiGeneratorPcdEstimation saves the results in a glTF file. This only works for a small amount of frames because the files become too large and fail to load in Three.js library.
+- glTF embeds point and color buffers and is practical only for relatively short sequences.
+- FOV estimation is not implemented.
+- Stereoscopic mesh rendering and browser/AR/VR integration remain experimental and are not registered as ComfyUI nodes.
+- Model inference, PyTorch3D, StereoCrafter, and PDAL workflows require their full runtime dependencies and suitable hardware.
 
-Table 1 : glTF file (json and binary data in the same file)
+## Development validation
 
-| Number of frames | Filesize | Status |
-| ---------------- | -------- | ------ |
-| 2                | 42 MB    | Works  |
-| 10               | 213 MB   | Works  |
-| 20               | 426 MB   | Works  |
-| 40               | 853 MB   | Fails to load in Three.js |
+```bash
+python3 -m compileall -q __init__.py nodes utils tests
+python3 -m unittest discover -s tests -v
+git diff --check
+```
 
-A future version will replace glTF by OpenImageIO OpenEXR. It supports layers, multiple channels, compression, HALF, FLOAT, and UINT32 pixel data. It could allow to store :
-
-* COLOR : R, G, B, A
-* POSITION : P.X, P.Y, P.Z
-* Normalized disparity : ND.V
-
-Once rendering works, it could be interesting to experiment with interpolation of the point positions between frames.
-
-## Viewing the colored point cloud videos stored in a glTF file
-
-The current Three.js app is not shared online.
-
-I generated a colored point cloud that contains one point per pixel. Each frame is stored in a different scene.
-
- I tested a simple Three.js app that loads the glTF file and changes the visibility of the scenes over time so that it looks like a moving colored point cloud.
-
-CONS
-
-* This method only works with a small amount of frames because of issues related to loading large glTF files in the browser.
-* It requires to store X,Y,Z coordinates for each point.
-* The performance of the app is bad.
-
-## Viewing the colored point cloud videos generated from a OpenEXR images sequence
-
-WIP. Will share when I have a working solution.
-
-OpenEXR PROS :
-
-* Supported by good quality libraries in multiple programming languages.
-* Can store sequences of images.
-* Can compress and decompress the data (could reduce filesize by half).
-* Possible to store colors (R, G, B, A) in a lower resolution data type
-* Possible to store position (P.X, P.Y, P.Z) in the same resolution as the colors or a lower resolution.
-* Possible to store normalized disparity value (ND.V). Normalized disparity is used to compute position (P.X, P.Y, P.Z).
-
-Work planned :
-
-* Split TridiGeneratorPcdEstimation in multiple nodes and output colors (R, G, B, A) and positions (P.X, P.Y, P.Z) data.
-* Develop a node that takes colors (R, G, B, A) and positions (P.X, P.Y, P.Z) as input and writes an OpenEXR images sequence file.
-* Develop a Three.js app that read the colors (R, G, B, A) and positions (P.X, P.Y, P.Z) images sequences and render colored points clouds.
-
-A few implementations will be tested :
-
-Experiment 1 - During loading, create points sequences using the colors and positions and store them in memory.
-
-Experiment 2 - Load the colors and positions sequences as if they were videos. Pass these videos to a shader that will calculate points positions in realtime.
-
-Experiment 3 - Load the colors and disparity sequences as if they were videos. Pass these videos to a shader that will calculate points positions in realtime. Heavier load than option 2 but allows to experiment with 2D to 3D conversion parameters in realtime.
-
-Experiment 4 - Instead of creating points for each frame of changing their visibility, create points and change their positions.
-
-The first experiment might improve rendering performance as the points positions will be pre-calculated.
-
-The second experiment might make it possible and easier to do position interpolation. It might also be possible to use a low resolution positions images sequence in a shader to improve performance at the cost of lower position precision.
-
-## Converting videos to stereoscopic side by side images sequences
-
-PROS
-No gaps between the pixels
-
-CONS
-Cannot move the camera position and orientation
-One eye shows the original pixels while the other eye shows generated pixels (might look blurry or wrong).
-
-I experimented a little with [StereoCrafter](https://github.com/TencentARC/StereoCrafter) and prefer the point cloud generation solution. While it might show gaps when too close or when being too far from the initial camera position, it allows to move around in the scene and render it in augmented reality (AR).
-
-## Disclaimer
-
-I don't have much experience using Three.js. It might take a long time to get a working solution.
-
-I'm interested in other ideas. I want to use open source solutions.
-
-The first version of TridiGeneratorPcdEstimation works for a video of resolution 1024x1024. Other resolutions might generate errors.
-
-Future versions might lower memory usage and improve performance.
-
-DepthCrafter might have been improved since work began on this plugin.
-TODO : look at commits, issues, pull requests of DepthCrafter to see if they require changes in our code.
+Runtime changes should also be checked by starting ComfyUI and exercising the affected workflow.
 
 ## Acknowledgements
 
-* [DepthCrafter](https://github.com/Tencent/DepthCrafter): Generating Consistent Long Depth Sequences for Open-world Videos
-* DepthCrafter uses stable_video_diffusion (SVD)
+- [Depth Anything V2](https://github.com/DepthAnything/Depth-Anything-V2)
+- [Video Depth Anything](https://github.com/DepthAnything/Video-Depth-Anything)
+- [StereoCrafter](https://github.com/TencentARC/StereoCrafter)
+- [PyTorch3D](https://github.com/facebookresearch/pytorch3d)

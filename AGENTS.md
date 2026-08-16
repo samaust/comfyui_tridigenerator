@@ -7,7 +7,7 @@
 - Place new nodes under `nodes/<theme>/` and their implementation under the corresponding `utils/<theme>/` path where practical. Nodes should call the utility implementation rather than duplicate it.
 - `nodes/nodes.py` is the central registry for `NODE_CLASS_MAPPINGS` and `NODE_DISPLAY_NAME_MAPPINGS`.
 - The root `__init__.py` exports the node mappings and declares `WEB_DIRECTORY` for ComfyUI.
-- `web/` contains browser-side extensions and assets. `depthcrafter/` contains bundled DepthCrafter model support.
+- `web/` contains browser-side extensions and assets.
 - `README.md` documents installation, available nodes, and user-facing behavior. Update it when nodes or their behavior change.
 
 ## Node Development Conventions
@@ -30,9 +30,9 @@
 
 ## Build, Test, and Validation
 
-- No automated test suite, formatter, or linter is currently configured. Do not claim a check passed unless it was run in an environment with the required dependencies.
-- Run `python -m compileall __init__.py nodes utils` for a basic syntax check.
-- Run `pip install .` in the intended ComfyUI virtual environment to validate packaging and dependencies. Installation may require CUDA, PyTorch3D, PDAL, model packages, and other native prerequisites described in `README.md`.
+- The standard-library `unittest` suite lives under `tests/`. Run `python3 -m unittest discover -s tests -v` in an environment with the required dependencies.
+- Run `python3 -m compileall -q __init__.py nodes utils tests` for a basic syntax check.
+- Run `python3 -m pip install -r requirements.txt` in the intended ComfyUI virtual environment to install dependencies. Installation may require CUDA, PyTorch3D, PDAL, model packages, and other native prerequisites described in `README.md`.
 - Start ComfyUI and confirm the package imports without errors, all changed nodes appear under their declared categories, and their inputs, outputs, and display names match the mappings.
 - Exercise a targeted workflow for each changed node. Check output shapes and dtypes, CPU/GPU placement, saved paths or files, and model cleanup where applicable.
 - For utility-only changes, prefer small deterministic checks that call the utility directly when its dependencies permit; then validate the calling node integration in ComfyUI.
