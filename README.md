@@ -116,7 +116,7 @@ Connect the extracted images, metric depths, and JSON metadata directly, plus th
 
 - glTF embeds point and color buffers and is practical only for relatively short sequences.
 - Geometry nodes consume per-frame `VIPE_INTRINSICS` from `comfyui_vipe`; field-of-view approximation is intentionally unsupported.
-- `TDGenRenderTexturedMesh` renders synchronized RGB, masks, metric depth, and ViPE metadata using per-frame pinhole intrinsics and camera-to-world poses. Displacement is in metres and rotation uses yaw (Y), pitch (X), then roll (Z), in degrees.
+- `TDGenRenderTexturedMesh` renders synchronized RGB, masks, metric depth, and ViPE metadata using per-frame pinhole intrinsics. It rebases every camera-to-world pose into the first camera's coordinate system, where the displacement controls are measured in metres and rotation uses yaw (Y), pitch (X), then roll (Z), in degrees.
 - Stereoscopic mesh rendering and browser/AR/VR integration remain experimental and are not registered as ComfyUI nodes.
 - Model inference, PyTorch3D, StereoCrafter, and PDAL workflows require their full runtime dependencies and suitable hardware.
 

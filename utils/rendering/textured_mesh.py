@@ -74,6 +74,12 @@ def _view_control(displacement: tuple[float, float, float], rotation: tuple[floa
     return transform
 
 
+def _camera_poses_relative_to_first(poses: torch.Tensor, conversion: torch.Tensor) -> torch.Tensor:
+    """Express camera-to-world poses in the first camera's coordinate system."""
+    first_from_world = torch.linalg.inv(poses[0])
+    return conversion @ first_from_world @ poses @ torch.linalg.inv(conversion)
+
+
 def _grid_faces(height: int, width: int, valid: torch.Tensor) -> torch.Tensor:
     indices = torch.arange(height * width, device=valid.device).reshape(height, width)
     top_left = indices[:-1, :-1]
@@ -117,7 +123,7 @@ def render_textured_mesh(
         raise ValueError("images must contain finite values")
 
     conversion = torch.diag(torch.tensor([1.0, -1.0, -1.0, 1.0], device=device))
-    relative = conversion @ poses @ torch.linalg.inv(poses[0]) @ torch.linalg.inv(conversion)
+    relative = _camera_poses_relative_to_first(poses, conversion)
     view = torch.linalg.inv(_view_control(displacement, rotation, device))
     y_pixels, x_pixels = torch.meshgrid(
         torch.arange(height, dtype=torch.float32, device=device),
