@@ -1,6 +1,6 @@
 import comfy.model_management as model_management
 
-from ...utils.rendering.textured_mesh import render_textured_mesh
+from ...utils.rendering.textured_mesh import CAMERA_ORIGINS, render_textured_mesh
 
 
 class TDGenRenderTexturedMesh:
@@ -13,28 +13,48 @@ class TDGenRenderTexturedMesh:
             "json_data": ("STRING", {"forceInput": True}),
             "displacement_x": (
                 "FLOAT",
-                {"default": 0.0, "min": -100000.0, "max": 100000.0, "step": 0.01},
+                {"default": 0.0, "min": -100000.0, "max": 100000.0, "step": 0.001},
             ),
             "displacement_y": (
                 "FLOAT",
-                {"default": 0.0, "min": -100000.0, "max": 100000.0, "step": 0.01},
+                {"default": 0.0, "min": -100000.0, "max": 100000.0, "step": 0.001},
             ),
             "displacement_z": (
                 "FLOAT",
-                {"default": 0.0, "min": -100000.0, "max": 100000.0, "step": 0.01},
+                {"default": 0.0, "min": -100000.0, "max": 100000.0, "step": 0.001},
             ),
             "yaw": ("FLOAT", {"default": 0.0, "min": -360.0, "max": 360.0, "step": 0.1}),
             "pitch": ("FLOAT", {"default": 0.0, "min": -360.0, "max": 360.0, "step": 0.1}),
             "roll": ("FLOAT", {"default": 0.0, "min": -360.0, "max": 360.0, "step": 0.1}),
+            "camera_origin": (
+                CAMERA_ORIGINS,
+                {
+                    "default": "vipe_world",
+                    "tooltip": "Fix the virtual camera at the first frame or ViPE world, or follow the current frame.",
+                },
+            ),
         }}
 
     RETURN_TYPES = ("IMAGE",)
     RETURN_NAMES = ("images",)
     FUNCTION = "run"
     CATEGORY = "TDGen/Rendering"
-    DESCRIPTION = "Render ViPE RGB-D frames as pose-aware textured meshes using per-frame pinhole intrinsics."
+    DESCRIPTION = "Render ViPE RGB-D meshes from a fixed origin or each frame's estimated camera pose."
 
-    def run(self, images, masks, depths, json_data, displacement_x, displacement_y, displacement_z, yaw, pitch, roll):
+    def run(
+        self,
+        images,
+        masks,
+        depths,
+        json_data,
+        displacement_x,
+        displacement_y,
+        displacement_z,
+        yaw,
+        pitch,
+        roll,
+        camera_origin="vipe_world",
+    ):
         rendered = render_textured_mesh(
             images,
             masks,
@@ -43,5 +63,6 @@ class TDGenRenderTexturedMesh:
             displacement=(displacement_x, displacement_y, displacement_z),
             rotation=(yaw, pitch, roll),
             device=model_management.get_torch_device(),
+            camera_origin=camera_origin,
         )
         return (rendered,)

@@ -149,6 +149,12 @@ class PackageImportTests(unittest.TestCase):
             options = renderer_inputs[name][1]
             self.assertLess(options["min"], 0, name)
             self.assertGreater(options["max"], 0, name)
+        self.assertEqual(
+            renderer_inputs["camera_origin"][0],
+            ["first_frame", "vipe_world", "current_frame"],
+        )
+        self.assertEqual(renderer_inputs["camera_origin"][1]["default"], "vipe_world")
+        self.assertEqual(list(renderer_inputs)[-1], "camera_origin")
 
 
 if __name__ == "__main__":

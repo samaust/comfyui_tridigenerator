@@ -7,6 +7,9 @@ from ..datatypes import Device
 from ..pytorch3d import require_pytorch3d
 
 
+CAMERA_ORIGINS = ["first_frame", "vipe_world", "current_frame"]
+
+
 def _validated_metadata(json_data: str, frame_count: int, height: int, width: int) -> tuple[torch.Tensor, torch.Tensor]:
     try:
         metadata = json.loads(json_data)
@@ -74,10 +77,29 @@ def _view_control(displacement: tuple[float, float, float], rotation: tuple[floa
     return transform
 
 
-def _camera_poses_relative_to_first(poses: torch.Tensor, conversion: torch.Tensor) -> torch.Tensor:
-    """Express camera-to-world poses in the first camera's coordinate system."""
-    first_from_world = torch.linalg.inv(poses[0])
-    return conversion @ first_from_world @ poses @ torch.linalg.inv(conversion)
+def _camera_poses_for_origin(
+    poses: torch.Tensor,
+    conversion: torch.Tensor,
+    camera_origin: str,
+) -> torch.Tensor:
+    """Express camera-to-world poses in the selected renderer coordinate system."""
+    if camera_origin in {"first_frame", "current_frame"}:
+        origin_poses = torch.linalg.inv(poses[0]) @ poses
+    elif camera_origin == "vipe_world":
+        origin_poses = poses
+    else:
+        raise ValueError(f"camera_origin must be one of {CAMERA_ORIGINS}")
+    return conversion @ origin_poses @ torch.linalg.inv(conversion)
+
+
+def _camera_view_for_frame(
+    mesh_pose: torch.Tensor,
+    view_control: torch.Tensor,
+    camera_origin: str,
+) -> torch.Tensor:
+    """Build the world-to-camera view for a fixed or frame-following camera."""
+    camera_pose = mesh_pose @ view_control if camera_origin == "current_frame" else view_control
+    return torch.linalg.inv(camera_pose)
 
 
 def _grid_faces(height: int, width: int, valid: torch.Tensor) -> torch.Tensor:
@@ -100,6 +122,7 @@ def render_textured_mesh(
     displacement: tuple[float, float, float] = (0.0, 0.0, 0.0),
     rotation: tuple[float, float, float] = (0.0, 0.0, 0.0),
     device: Device = "cpu",
+    camera_origin: str = "vipe_world",
 ) -> torch.Tensor:
     if images.ndim != 4 or images.shape[-1] != 3:
         raise ValueError("images must have shape [N,H,W,3]")
@@ -123,8 +146,8 @@ def render_textured_mesh(
         raise ValueError("images must contain finite values")
 
     conversion = torch.diag(torch.tensor([1.0, -1.0, -1.0, 1.0], device=device))
-    relative = _camera_poses_relative_to_first(poses, conversion)
-    view = torch.linalg.inv(_view_control(displacement, rotation, device))
+    relative = _camera_poses_for_origin(poses, conversion, camera_origin)
+    view_control = _view_control(displacement, rotation, device)
     y_pixels, x_pixels = torch.meshgrid(
         torch.arange(height, dtype=torch.float32, device=device),
         torch.arange(width, dtype=torch.float32, device=device),
@@ -146,6 +169,7 @@ def render_textured_mesh(
             dim=-1,
         ).reshape(-1, 4)
         world = (relative[index] @ local.transpose(0, 1)).transpose(0, 1)
+        view = _camera_view_for_frame(relative[index], view_control, camera_origin)
         camera_gl = (view @ world.transpose(0, 1)).transpose(0, 1)[:, :3]
         verts = camera_gl * torch.tensor([-1.0, 1.0, -1.0], device=device)
         faces = _grid_faces(height, width, valid)
