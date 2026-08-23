@@ -154,7 +154,9 @@ class PackageImportTests(unittest.TestCase):
             ["first_frame", "vipe_world", "current_frame"],
         )
         self.assertEqual(renderer_inputs["camera_origin"][1]["default"], "vipe_world")
-        self.assertEqual(list(renderer_inputs)[-1], "camera_origin")
+        self.assertEqual(renderer_inputs["bg_color"][0], "STRING")
+        self.assertEqual(renderer_inputs["bg_color"][1]["default"], "#000000")
+        self.assertEqual(list(renderer_inputs)[-1], "bg_color")
 
 
 if __name__ == "__main__":

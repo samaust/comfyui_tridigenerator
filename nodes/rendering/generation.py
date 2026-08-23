@@ -33,6 +33,13 @@ class TDGenRenderTexturedMesh:
                     "tooltip": "Fix the virtual camera at the first frame or ViPE world, or follow the current frame.",
                 },
             ),
+            "bg_color": (
+                "STRING",
+                {
+                    "default": "#000000",
+                    "tooltip": "Background color as a six-digit hex code, for example #FFFFFF.",
+                },
+            ),
         }}
 
     RETURN_TYPES = ("IMAGE",)
@@ -54,6 +61,7 @@ class TDGenRenderTexturedMesh:
         pitch,
         roll,
         camera_origin="vipe_world",
+        bg_color="#000000",
     ):
         rendered = render_textured_mesh(
             images,
@@ -64,5 +72,6 @@ class TDGenRenderTexturedMesh:
             rotation=(yaw, pitch, roll),
             device=model_management.get_torch_device(),
             camera_origin=camera_origin,
+            bg_color=bg_color,
         )
         return (rendered,)

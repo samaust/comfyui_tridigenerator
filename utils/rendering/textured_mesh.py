@@ -10,6 +10,17 @@ from ..pytorch3d import require_pytorch3d
 CAMERA_ORIGINS = ["first_frame", "vipe_world", "current_frame"]
 
 
+def _parse_hex_color(value: str) -> tuple[float, float, float]:
+    if (
+        not isinstance(value, str)
+        or len(value) != 7
+        or value[0] != "#"
+        or any(character not in "0123456789abcdefABCDEF" for character in value[1:])
+    ):
+        raise ValueError("bg_color must be a six-digit hex code in #RRGGBB format")
+    return tuple(int(value[index:index + 2], 16) / 255.0 for index in (1, 3, 5))
+
+
 def _validated_metadata(json_data: str, frame_count: int, height: int, width: int) -> tuple[torch.Tensor, torch.Tensor]:
     try:
         metadata = json.loads(json_data)
@@ -123,6 +134,7 @@ def render_textured_mesh(
     rotation: tuple[float, float, float] = (0.0, 0.0, 0.0),
     device: Device = "cpu",
     camera_origin: str = "vipe_world",
+    bg_color: str = "#000000",
 ) -> torch.Tensor:
     if images.ndim != 4 or images.shape[-1] != 3:
         raise ValueError("images must have shape [N,H,W,3]")
@@ -135,6 +147,7 @@ def render_textured_mesh(
     frame_count, height, width = images.shape[:3]
     if frame_count == 0 or height < 2 or width < 2:
         raise ValueError("the renderer requires non-empty images at least 2x2 pixels")
+    background = torch.tensor(_parse_hex_color(bg_color), dtype=torch.float32, device=device)
     pytorch3d = require_pytorch3d()
     poses, intrinsics = _validated_metadata(json_data, frame_count, height, width)
     images = images.detach().to(device=device, dtype=torch.float32)
@@ -176,7 +189,7 @@ def render_textured_mesh(
         if faces.numel() > 0:
             faces = faces[(verts[:, 2] > 1e-6)[faces].all(dim=1)]
         if faces.numel() == 0:
-            output.append(torch.zeros((height, width, 3), device=device))
+            output.append(background.expand(height, width, -1).clone())
             continue
         mesh = pytorch3d.Meshes(verts=[verts], faces=[faces])
         camera = pytorch3d.PerspectiveCameras(
@@ -196,6 +209,6 @@ def render_textured_mesh(
         pixels = pytorch3d.interpolate_face_attributes(
             fragments.pix_to_face, fragments.bary_coords, face_colors
         )[0, :, :, 0]
-        pixels[fragments.pix_to_face[0, :, :, 0] < 0] = 0
+        pixels[fragments.pix_to_face[0, :, :, 0] < 0] = background
         output.append(pixels.clamp(0, 1))
     return torch.stack(output).detach().cpu().to(torch.float32)

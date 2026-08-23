@@ -3,13 +3,25 @@ import unittest
 try:
     import torch
 
-    from utils.rendering.textured_mesh import _camera_poses_for_origin, _camera_view_for_frame
+    from utils.rendering.textured_mesh import _camera_poses_for_origin, _camera_view_for_frame, _parse_hex_color
 except ImportError:
     torch = None
 
 
 @unittest.skipUnless(torch is not None, "Torch is required")
 class RenderingUtilityTests(unittest.TestCase):
+    def test_hex_background_color_is_converted_to_normalized_rgb(self):
+        color = _parse_hex_color("#00ff80")
+
+        self.assertEqual(color[:2], (0.0, 1.0))
+        self.assertAlmostEqual(color[2], 128 / 255)
+
+    def test_hex_background_color_rejects_invalid_values(self):
+        for value in ("000000", "#fff", "#1234567", "#GG0000", "# 00000", None):
+            with self.subTest(value=value):
+                with self.assertRaisesRegex(ValueError, "bg_color"):
+                    _parse_hex_color(value)
+
     def test_camera_poses_are_rebased_into_nonidentity_first_camera(self):
         first = torch.tensor(
             [
