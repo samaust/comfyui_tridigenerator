@@ -42,11 +42,11 @@ class TDGenRenderTexturedMesh:
             ),
         }}
 
-    RETURN_TYPES = ("IMAGE",)
-    RETURN_NAMES = ("images",)
+    RETURN_TYPES = ("IMAGE", "MASK")
+    RETURN_NAMES = ("images", "mask")
     FUNCTION = "run"
     CATEGORY = "TDGen/Rendering"
-    DESCRIPTION = "Render ViPE RGB-D meshes from a fixed origin or each frame's estimated camera pose."
+    DESCRIPTION = "Render ViPE RGB-D meshes and a mask selecting pixels not covered by the rendered geometry."
 
     def run(
         self,
@@ -63,7 +63,7 @@ class TDGenRenderTexturedMesh:
         camera_origin="vipe_world",
         bg_color="#000000",
     ):
-        rendered = render_textured_mesh(
+        rendered, unrendered_mask = render_textured_mesh(
             images,
             masks,
             depths,
@@ -74,4 +74,4 @@ class TDGenRenderTexturedMesh:
             camera_origin=camera_origin,
             bg_color=bg_color,
         )
-        return (rendered,)
+        return (rendered, unrendered_mask)

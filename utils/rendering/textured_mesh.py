@@ -135,7 +135,7 @@ def render_textured_mesh(
     device: Device = "cpu",
     camera_origin: str = "vipe_world",
     bg_color: str = "#000000",
-) -> torch.Tensor:
+) -> tuple[torch.Tensor, torch.Tensor]:
     if images.ndim != 4 or images.shape[-1] != 3:
         raise ValueError("images must have shape [N,H,W,3]")
     if masks.ndim == 4 and masks.shape[-1] == 1:
@@ -166,7 +166,8 @@ def render_textured_mesh(
         torch.arange(width, dtype=torch.float32, device=device),
         indexing="ij",
     )
-    output = []
+    output_images = []
+    output_masks = []
     for index in range(frame_count):
         depth = depths[index]
         valid = torch.isfinite(depth) & (depth > 0) & (masks[index] > 0.5)
@@ -189,7 +190,8 @@ def render_textured_mesh(
         if faces.numel() > 0:
             faces = faces[(verts[:, 2] > 1e-6)[faces].all(dim=1)]
         if faces.numel() == 0:
-            output.append(background.expand(height, width, -1).clone())
+            output_images.append(background.expand(height, width, -1).clone())
+            output_masks.append(torch.ones((height, width), dtype=torch.float32, device=device))
             continue
         mesh = pytorch3d.Meshes(verts=[verts], faces=[faces])
         camera = pytorch3d.PerspectiveCameras(
@@ -209,6 +211,11 @@ def render_textured_mesh(
         pixels = pytorch3d.interpolate_face_attributes(
             fragments.pix_to_face, fragments.bary_coords, face_colors
         )[0, :, :, 0]
-        pixels[fragments.pix_to_face[0, :, :, 0] < 0] = background
-        output.append(pixels.clamp(0, 1))
-    return torch.stack(output).detach().cpu().to(torch.float32)
+        unrendered = fragments.pix_to_face[0, :, :, 0] < 0
+        pixels[unrendered] = background
+        output_images.append(pixels.clamp(0, 1))
+        output_masks.append(unrendered.to(dtype=torch.float32))
+    return (
+        torch.stack(output_images).detach().cpu().to(torch.float32),
+        torch.stack(output_masks).detach().cpu().to(torch.float32),
+    )

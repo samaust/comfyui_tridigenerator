@@ -157,6 +157,19 @@ class PackageImportTests(unittest.TestCase):
         self.assertEqual(renderer_inputs["bg_color"][0], "STRING")
         self.assertEqual(renderer_inputs["bg_color"][1]["default"], "#000000")
         self.assertEqual(list(renderer_inputs)[-1], "bg_color")
+        renderer = module.NODE_CLASS_MAPPINGS["TDGenRenderTexturedMesh"]
+        self.assertEqual(renderer.RETURN_TYPES, ("IMAGE", "MASK"))
+        self.assertEqual(renderer.RETURN_NAMES, ("images", "mask"))
+
+        original_render = renderer.run.__globals__["render_textured_mesh"]
+        renderer.run.__globals__["render_textured_mesh"] = Mock(
+            return_value=("rendered", "unrendered_mask")
+        )
+        try:
+            outputs = renderer().run(None, None, None, "{}", 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+        finally:
+            renderer.run.__globals__["render_textured_mesh"] = original_render
+        self.assertEqual(outputs, ("rendered", "unrendered_mask"))
 
 
 if __name__ == "__main__":

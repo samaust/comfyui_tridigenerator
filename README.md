@@ -79,7 +79,7 @@ Place supported safetensors files under the ComfyUI model directory:
 | Meshes / Save | `TDGenMeshesSavePly` | Save every incoming mesh as an RGB PLY file |
 | Classification | `TDGenClassificationAlpha` | Replace per-vertex alpha from masks |
 | Classification | `TDGenClassificationVisible` | Replace per-vertex visibility from face angles |
-| Rendering | `TDGenRenderTexturedMesh` | Render synchronized ViPE RGB-D data with poses and per-frame pinhole intrinsics |
+| Rendering | `TDGenRenderTexturedMesh` | Render synchronized ViPE RGB-D data and an unrendered-pixel mask |
 | Stereoscopic / Models | `TDGenStereoscopicLoadModelSvdStereoCrafter` | Load the SVD StereoCrafter pipeline |
 | Stereoscopic / Generation | `TDGenStereoscopicTiledInpaint` | Inpaint warped stereoscopic frames |
 | Videos / Save | `TDGenSaveVideoExr` | Save one-, three-, or four-channel EXR video sequences |
@@ -116,7 +116,7 @@ Connect the extracted images, metric depths, and JSON metadata directly, plus th
 
 - glTF embeds point and color buffers and is practical only for relatively short sequences.
 - Geometry nodes consume per-frame `VIPE_INTRINSICS` from `comfyui_vipe`; field-of-view approximation is intentionally unsupported.
-- `TDGenRenderTexturedMesh` renders synchronized RGB, masks, metric depth, and ViPE metadata using per-frame pinhole intrinsics. `camera_origin` defaults to `vipe_world` for a fixed ViPE-world camera; use `first_frame` for a fixed frame-zero-relative camera or `current_frame` to follow every frame's estimated camera pose and reproduce the source viewpoint at zero offsets. Displacement is measured in metres; in `current_frame` it is local to the moving camera. Rotation uses yaw (Y), pitch (X), then roll (Z), in degrees. `bg_color` accepts a six-digit `#RRGGBB` value and defaults to black.
+- `TDGenRenderTexturedMesh` renders synchronized RGB, masks, metric depth, and ViPE metadata using per-frame pinhole intrinsics. Its `mask` output is `1.0` for pixels not covered by rendered geometry and `0.0` for rendered pixels. `camera_origin` defaults to `vipe_world` for a fixed ViPE-world camera; use `first_frame` for a fixed frame-zero-relative camera or `current_frame` to follow every frame's estimated camera pose and reproduce the source viewpoint at zero offsets. Displacement is measured in metres; in `current_frame` it is local to the moving camera. Rotation uses yaw (Y), pitch (X), then roll (Z), in degrees. `bg_color` accepts a six-digit `#RRGGBB` value and defaults to black.
 - Stereoscopic mesh rendering and browser/AR/VR integration remain experimental and are not registered as ComfyUI nodes.
 - Model inference, PyTorch3D, StereoCrafter, and PDAL workflows require their full runtime dependencies and suitable hardware.
 

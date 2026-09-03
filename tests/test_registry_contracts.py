@@ -58,6 +58,24 @@ class RegistryContractTests(unittest.TestCase):
         for path in (ROOT / "nodes").rglob("*.py"):
             self.assertNotIn("fov", path.read_text().lower(), str(path))
 
+    def test_textured_mesh_renderer_exposes_image_and_mask_outputs(self):
+        tree = ast.parse((ROOT / "nodes" / "rendering" / "generation.py").read_text())
+        renderer = next(
+            node
+            for node in tree.body
+            if isinstance(node, ast.ClassDef) and node.name == "TDGenRenderTexturedMesh"
+        )
+        assignments = {
+            target.id: ast.literal_eval(statement.value)
+            for statement in renderer.body
+            if isinstance(statement, ast.Assign)
+            for target in statement.targets
+            if isinstance(target, ast.Name) and target.id in {"RETURN_TYPES", "RETURN_NAMES"}
+        }
+
+        self.assertEqual(assignments["RETURN_TYPES"], ("IMAGE", "MASK"))
+        self.assertEqual(assignments["RETURN_NAMES"], ("images", "mask"))
+
     def test_pytorch3d_is_not_imported_while_registering_nodes(self):
         for path in (ROOT / "utils").rglob("*.py"):
             if path.name == "pytorch3d.py":
