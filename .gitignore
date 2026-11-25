@@ -177,3 +177,6 @@ cython_debug/
 
 # codex
 .codex/
+
+# Editor settings
+.vscode/
